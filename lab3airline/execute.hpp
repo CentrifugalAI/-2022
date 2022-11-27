@@ -35,7 +35,7 @@ void Execute::operator()(Airports* airports)
         string outs, ins;
         outs = "Please enter the function you want to call";
         cout << endl << ">>> " << outs << endl << "<<< ";
-        int fun = 0;
+        int fun = 0, year;
         cin >> fun; // 读取功能
         switch (fun)
         {
@@ -53,23 +53,23 @@ void Execute::operator()(Airports* airports)
         {
             outs = "Please enter the maximum number of transfers allowed";
             cout << ">>> " << outs << endl << "<<< ";
-            int max_transfer_time;
-            cin >> max_transfer_time;
+            int max_transfer_cnt;
+            cin >> max_transfer_cnt;
             cout << ">>> ";
-            airports->solver2(max_transfer_time);
+            airports->solver2(max_transfer_cnt);
             break;
         }
         case 3:
         {
             outs = "Please enter the ID of the start airport and the end airport";
             cout << ">>> " << outs << endl << "<<< ";
-            int port_id1, port_id2, max_transfer_time;
+            int port_id1, port_id2, max_transfer_cnt;
             cin >> port_id1 >> port_id2;
             outs = "Please enter a limit on the number of transfers";
             cout << ">>> " << outs << endl << "<<< ";
-            cin >> max_transfer_time;
+            cin >> max_transfer_cnt;
             cout << ">>> ";
-            airports->solver3(PortInfo(port_id1), PortInfo(port_id2), max_transfer_time);
+            airports->solver3(PortInfo(port_id1), PortInfo(port_id2), max_transfer_cnt);
             break;
         }
         case 4:
@@ -88,18 +88,9 @@ void Execute::operator()(Airports* airports)
             cout << ">>> " << outs << endl << "<<< ";
             int port_id1, port_id2;
             cin >> port_id1 >> port_id2;
+            getchar();
 
-            int year;
-
-            outs = "Please enter the upper limit of departure time (if there is no requirement, enter 0 for year)";
-            cout << ">>> " << outs << endl << "<<< ";
-            Time srcTime_ub;
-            getline(cin, ins);
-            sscanf(ins.c_str(), "%d/%d/%d %d:%d", &srcTime_ub.month, &srcTime_ub.day, &year, &srcTime_ub.hour, &srcTime_ub.minute);
-            if (year == 0)
-                srcTime_ub.month = srcTime_ub.day = srcTime_ub.hour = srcTime_ub.minute = 0;
-
-            outs = "Please enter the lower limit of departure time (if not, enter 9999 for the year)";
+            outs = "Please enter the earliest limit of departure time (if not, enter 0 for the year)";
             cout << ">>> " << outs << endl << "<<< ";
             Time srcTime_lb;
             getline(cin, ins);
@@ -107,20 +98,28 @@ void Execute::operator()(Airports* airports)
             if (year == 0)
                 srcTime_lb.month = srcTime_lb.day = srcTime_lb.hour = srcTime_lb.minute = 0;
 
-            outs = "Please enter the upper limit of arrival time (if there is no requirement, enter 0 for year)";
+            outs = "Please enter the latest limit of departure time (if there is no requirement, enter 9999 for year)";
             cout << ">>> " << outs << endl << "<<< ";
-            Time destTime_ub;
-            getline(cin, ins);sscanf(ins.c_str(), "%d/%d/%d %d:%d", &destTime_ub.month, &destTime_ub.day, &year, &destTime_ub.hour, &destTime_ub.minute);
-            if (year == 0)
-                destTime_ub.month = destTime_ub.day = destTime_ub.hour = destTime_ub.minute = 0;
+            Time srcTime_ub;
+            getline(cin, ins);
+            sscanf(ins.c_str(), "%d/%d/%d %d:%d", &srcTime_ub.month, &srcTime_ub.day, &year, &srcTime_ub.hour, &srcTime_ub.minute);
+            if (year == 9999)
+                srcTime_ub.month = srcTime_ub.day = srcTime_ub.hour = srcTime_ub.minute = 99;
 
-            outs = "Please enter the lower limit of arrival time (if there is no requirement, enter 9999 for year)";
+            outs = "Please enter the earliest limit of arrival time (if there is no requirement, enter 0 for year)";
             cout << ">>> " << outs << endl << "<<< ";
             Time destTime_lb;
             getline(cin, ins);
             sscanf(ins.c_str(), "%d/%d/%d %d:%d", &destTime_lb.month, &destTime_lb.day, &year, &destTime_lb.hour, &destTime_lb.minute);
+            if (year == 0)
+                destTime_lb.month = destTime_lb.day = destTime_lb.hour = destTime_lb.minute = 0;
+
+            outs = "Please enter the latest limit of arrival time (if there is no requirement, enter 9999 for year)";
+            cout << ">>> " << outs << endl << "<<< ";
+            Time destTime_ub;
+            getline(cin, ins);sscanf(ins.c_str(), "%d/%d/%d %d:%d", &destTime_ub.month, &destTime_ub.day, &year, &destTime_ub.hour, &destTime_ub.minute);
             if (year == 9999)
-                destTime_lb.month = destTime_lb.day = destTime_lb.hour = destTime_lb.minute = 9999;
+                destTime_ub.month = destTime_ub.day = destTime_ub.hour = destTime_ub.minute = 99;
 
             outs = "Please enter the model requirements (if there is no requirement, enter -1)";
             cout << ">>> " << outs << endl << "<<< ";
@@ -129,11 +128,11 @@ void Execute::operator()(Airports* airports)
 
             outs = "Please enter the maximum number of transfers (9999 if not required)";
             cout << ">>> " << outs << endl << "<<< ";
-            int max_transfer_time;
-            cin >> max_transfer_time;
+            int max_transfer_cnt;
+            cin >> max_transfer_cnt;
 
             cout << ">>> ";
-            airports->solver5(PortInfo(port_id1), PortInfo(port_id2), srcTime_ub, srcTime_lb, destTime_ub, destTime_lb, p_model, max_transfer_time);
+            airports->solver5(PortInfo(port_id1), PortInfo(port_id2), srcTime_ub, srcTime_lb, destTime_ub, destTime_lb, p_model, max_transfer_cnt);
             break;
         }
         case 6:
@@ -142,39 +141,39 @@ void Execute::operator()(Airports* airports)
             cout << ">>> " << outs << endl << "<<< ";
             int port_id1, port_id2;
             cin >> port_id1 >> port_id2;
+            getchar();
 
-            int year;
+            outs = "Please enter the earliest limit of departure time (if not, enter 0 for the year)";
+            cout << ">>> " << outs << endl << "<<< ";
+            Time srcTime_lb;
+            getline(cin, ins);
+            sscanf(ins.c_str(), "%d/%d/%d %d:%d", &srcTime_lb.month, &srcTime_lb.day, &year, &srcTime_lb.hour, &srcTime_lb.minute);
+            if (year == 0)
+                srcTime_lb.month = srcTime_lb.day = srcTime_lb.hour = srcTime_lb.minute = 0;
 
-            outs = "Please enter the upper limit of departure time (if there is no requirement, enter 0 for year)";
+            outs = "Please enter the latest limit of departure time (if there is no requirement, enter 9999 for year)";
             cout << ">>> " << outs << endl << "<<< ";
             Time srcTime_ub;
             getline(cin, ins);
             sscanf(ins.c_str(), "%d/%d/%d %d:%d", &srcTime_ub.month, &srcTime_ub.day, &year, &srcTime_ub.hour, &srcTime_ub.minute);
-            if (year == 0)
-                srcTime_ub.month = srcTime_ub.day = srcTime_ub.hour = srcTime_ub.minute = 0;
+            if (year == 9999)
+                srcTime_ub.month = srcTime_ub.day = srcTime_ub.hour = srcTime_ub.minute = 99;
 
-            outs = "Please enter the lower limit of departure time (if not, enter 9999 for the year)";
-            cout << ">>> " << outs << endl << "<<< ";
-            Time srcTime_lb;
-            cin >> srcTime_lb.month >> srcTime_lb.day >> year >> srcTime_lb.hour >> srcTime_lb.minute;
-            if (year == 0)
-                srcTime_lb.month = srcTime_lb.day = srcTime_lb.hour = srcTime_lb.minute = 0;
-
-            outs = "Please enter the upper limit of arrival time (if there is no requirement, enter 0 for year)";
-            cout << ">>> " << outs << endl << "<<< ";
-            Time destTime_ub;
-            getline(cin, ins);
-            sscanf(ins.c_str(), "%d/%d/%d %d:%d", &destTime_ub.month, &destTime_ub.day, &year, &destTime_ub.hour, &destTime_ub.minute);
-            if (year == 0)
-                destTime_ub.month = destTime_ub.day = destTime_ub.hour = destTime_ub.minute = 0;
-
-            outs = "Please enter the lower limit of arrival time (if there is no requirement, enter 9999 for year)";
+            outs = "Please enter the earliest limit of arrival time (if there is no requirement, enter 0 for year)";
             cout << ">>> " << outs << endl << "<<< ";
             Time destTime_lb;
             getline(cin, ins);
             sscanf(ins.c_str(), "%d/%d/%d %d:%d", &destTime_lb.month, &destTime_lb.day, &year, &destTime_lb.hour, &destTime_lb.minute);
+            if (year == 0)
+                destTime_lb.month = destTime_lb.day = destTime_lb.hour = destTime_lb.minute = 0;
+
+            outs = "Please enter the latest limit of arrival time (if there is no requirement, enter 9999 for year)";
+            cout << ">>> " << outs << endl << "<<< ";
+            Time destTime_ub;
+            getline(cin, ins);
+            sscanf(ins.c_str(), "%d/%d/%d %d:%d", &destTime_ub.month, &destTime_ub.day, &year, &destTime_ub.hour, &destTime_ub.minute);
             if (year == 9999)
-                destTime_lb.month = destTime_lb.day = destTime_lb.hour = destTime_lb.minute = 9999;
+                destTime_ub.month = destTime_ub.day = destTime_ub.hour = destTime_ub.minute = 99;
 
             outs = "Please enter the model requirements (if there is no requirement, enter -1)";
             cout << ">>> " << outs << endl << "<<< ";
@@ -191,20 +190,20 @@ void Execute::operator()(Airports* airports)
             cout << ">>> " << outs << endl << "<<< ";
             int port_id1, port_id2;
             cin >> port_id1 >> port_id2;
-
-            outs = "Please enter the maximum transfer time";
-            cout << ">>> " << outs << endl << "<<< ";
-            int year;  Time max_time;
-            getline(cin, ins);
-            sscanf(ins.c_str(), "%d/%d/%d %d:%d", &max_time.month, &max_time.day, &year, &max_time.hour, &max_time.minute);
+            getchar();
 
             outs = "Please enter the maximum number of transfers";
             cout << ">>> " << outs << endl << "<<< ";
-            int max_transfer_time;
-            cin >> max_transfer_time;
+            int max_transfer_cnt;
+            cin >> max_transfer_cnt;
+
+            outs = "Please enter the maximum transfer time";
+            cout << ">>> " << outs << endl << "<<< ";
+            int max_time;
+            cin >> max_time;
 
             cout << ">>> ";
-            airports->solver7(PortInfo(port_id1), PortInfo(port_id2), max_time.toNum(), max_transfer_time);
+            airports->solver7(PortInfo(port_id1), PortInfo(port_id2), max_time, max_transfer_cnt);
             break;
         }
         case 8:
@@ -213,15 +212,14 @@ void Execute::operator()(Airports* airports)
             cout << ">>> " << outs << endl << "<<< ";
             int port_id1, port_id2;
             cin >> port_id1 >> port_id2;
+            getchar();
 
             outs = "Please enter the maximum transfer time";
             cout << ">>> " << outs << endl << "<<< ";
-            int year;  Time max_time;
-            getline(cin, ins);
-            sscanf(ins.c_str(), "%d/%d/%d %d:%d", &max_time.month, &max_time.day, &year, &max_time.hour, &max_time.minute);
-
+            int max_time;
+            cin >> max_time;
             cout << ">>> ";
-            airports->solver8(PortInfo(port_id1), PortInfo(port_id2), max_time.toNum());
+            airports->solver8(PortInfo(port_id1), PortInfo(port_id2), max_time);
             break;
         }
         default: break;

@@ -1,4 +1,4 @@
-g++ -g -o main main.cpp ./Execute/execute.cpp ./Airport/airport.cpp
+g++ -g -o main main.cpp
 
 # objdump -S -d main.exe > main.txt
 

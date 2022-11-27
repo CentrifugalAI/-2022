@@ -10,8 +10,5 @@ int main()
     Execute execute;
     execute(airports);
     delete airports;
-    while (1)
-    {
-    }
     return 0;
 }

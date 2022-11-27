@@ -42,7 +42,7 @@ struct FlightInfo
     int priority;                 // 迪杰斯特拉算法意义下的优先级 
     int guard;                    // 警戒值
     FlightInfo* lastFlight;          // 迪杰斯特拉算法意义下的上一趟航班
-    list<FlightInfo*> nextFlights;    // 下一趟航班构成的队列
+    list<FlightInfo*>* nextFlights;    // 下一趟航班构成的队列
     FlightInfo(Rank sp = -1, Rank dp = -1, Rank f_id = -1, Rank p_id = -1, Rank p_model = -1, Time dt = Time(), Time at = Time(), int f = -1); /**/
     FlightInfo(Time const& at);
     FlightInfo(FlightInfo const& f);
@@ -72,12 +72,12 @@ public:
     Airports(vector<vector<string>>* data);
     // 根据机场 ID 进行
     void solver1(PortInfo const& start_port);     // solution of 2.1
-    void solver2(int max_transfer_time);
+    void solver2(int max_transfer_cnt);
     void solver3(PortInfo const& src_port, PortInfo const& dest_port, int transfer_time);
     void solver4(PortInfo const& src_port, PortInfo const& dest_port);
-    void solver5(PortInfo const& src_port, PortInfo const& dest_port, Time const& srcTime_ub, Time const& srcTime_lb, Time const& destTime_ub, Time const& destTime_lb, int p_model, int max_transfer_time);
+    void solver5(PortInfo const& src_port, PortInfo const& dest_port, Time const& srcTime_ub, Time const& srcTime_lb, Time const& destTime_ub, Time const& destTime_lb, int p_model, int max_transfer_cnt);
     void solver6(PortInfo const& src_port, PortInfo const& dest_port, Time const& srcTime_ub, Time const& srcTime_lb, Time const& destTime_ub, Time const& destTime_lb, int p_model);
-    void solver7(PortInfo const& src_port, PortInfo const& dest_port, int max_time, int max_transfer_time);
+    void solver7(PortInfo const& src_port, PortInfo const& dest_port, int max_time, int max_transfer_cnt);
     void solver8(PortInfo const& src_port, PortInfo const& dest_port, int max_time);
 };
 
@@ -144,9 +144,9 @@ FlightInfo::FlightInfo(Time const& at)
 
 // FlightInfo::~FlightInfo() { if (lastFlight) delete lastFlight; }
 
-bool operator < (const FlightInfo& fi1, const FlightInfo& fi2) { return fi1.priority < fi2.priority; }
+bool operator < (const FlightInfo& fi1, const FlightInfo& fi2) { return fi1.priority > fi2.priority; }
 
-bool operator < (const FlightEle& ele1, const FlightEle& ele2) { return ele1.priority < ele2.priority; }
+bool operator < (const FlightEle& ele1, const FlightEle& ele2) { return ele1.priority > ele2.priority; }
 
 void Airports::builtPorts()
 {
@@ -206,9 +206,12 @@ void Airports::initNextFlight()
 {
     for (auto edge_list : this->E)
         for (auto edge : edge_list)     // 讨论每一个航班站（顶点）的每一趟航班（边）
+        {
+            edge->data->nextFlights = new list<FlightInfo*>();
             for (auto next_edge : E[edge->data->destPortID])     // 每一条边讨论终点起飞的所有航班（边）
                 if (edge->data->arrivalTime <= next_edge->data->departTime)  // 如果上一趟航班起飞时间比上一趟终点出发的下一趟航班抵达时间晚
-                    edge->data->nextFlights.push_back(next_edge->data);   // 认为该航班可以作为下一趟航班，并载入前一趟航班的 nextFlight
+                    edge->data->nextFlights->push_back(next_edge->data);   // 认为该航班可以作为下一趟航班，并载入前一趟航班的 nextFlight
+        }
 }
 
 inline void Airports::VST_print(PortInfo const& port)
@@ -223,8 +226,6 @@ void Airports::resetFlights()
         {
             flight->data->priority = __INT_MAX__;
             flight->data->guard = __INT_MAX__;
-            if (flight->data->lastFlight)
-                delete flight->data->lastFlight;
             flight->data->lastFlight = NULL;
         }
 }
@@ -244,11 +245,11 @@ void Airports::solver1(PortInfo const& start_port)
 
 void Airports::solver2(int max_trasfer_time)
 {
-    Rank arrivable[this->m_vcnt()][this->m_vcnt()];
+    bool arrivable[this->m_vcnt()][this->m_vcnt()];
     // 对 arrivable 数组进行初始化
     for (int i = 0; i < this->m_vcnt(); ++i)
         for (int j = 0; j <this->m_vcnt(); ++j)
-            arrivable[i][j] = 0;
+            arrivable[i][j] = false;
     // 对每个点进行一次限制深度的 BFS 
     for (Rank startVertex = 0; startVertex < this->m_vcnt(); ++startVertex)
     {
@@ -271,7 +272,7 @@ void Airports::solver2(int max_trasfer_time)
                         m_status(nbrVertex) = VStatus::DISCOVERD;
                         m_dTime(nbrVertex) = m_dTime(curVertex) + 1;
                         Q.push(nbrVertex);
-                        arrivable[startVertex][nbrVertex] = 1;
+                        arrivable[startVertex][nbrVertex] = true;
                     }
             m_status(curVertex) = VStatus::VISITED;
         }   // BFS 没有 fTime 的概念，它的 fTime 就是 dTime
@@ -280,7 +281,7 @@ void Airports::solver2(int max_trasfer_time)
     for (int i = 0; i < m_vcnt(); ++i)
     {
         for (int j = 0; j < m_vcnt(); ++j)
-            cout << arrivable[i][j] << " ";
+            cout << (int)arrivable[i][j] << " ";
         cout << endl;
     }
 }
@@ -292,7 +293,7 @@ void Airports::solver3(PortInfo const& src_post, PortInfo const& dest_port, int 
     {
         arrivable.push_back(edge->dest);
         if (transfer_time >= 1)
-            for (auto flight : edge->data->nextFlights)
+            for (auto flight : *(edge->data->nextFlights))
                 arrivable.push_back(flight->destPortID);
     }
     cout << endl;
@@ -310,9 +311,6 @@ void Airports::solver3(PortInfo const& src_post, PortInfo const& dest_port, int 
 void Airports::solver4(PortInfo const& src_port, PortInfo const& dest_port)
 {
     priority_queue<FlightEle> unadoptEle;    // 尚未采取的边 
-    /** TODO: 这里还需要自行实现一个二叉堆，先使用 priority_queue 糊弄一下）
-     *  这里考虑的优先级 priority 就是抵达该航班起点时已经使用的时间, 越小越优
-     */
     bool isAdopted[10000] = { false };
     resetFlights();                          // 初始化所有边
     // 先将 src_port 为起点的边全部放入 priority_queue 中
@@ -323,29 +321,38 @@ void Airports::solver4(PortInfo const& src_port, PortInfo const& dest_port)
         edge->data->lastFlight = begin_flight;
         unadoptEle.push(FlightEle(edge->data->flight_id, edge->data->priority, edge->data->guard));         // 初始时放入起点周围的所有边
     }
-
     while (!unadoptEle.empty())
     {
         // 算法正式启动：
         FlightEle bestFlightEle = unadoptEle.top();     // 贪心：最优边，采用并放入已采取队列中
         unadoptEle.pop();
         isAdopted[bestFlightEle.ID] = true;
-        // 优先级更新   
         FlightInfo* best_flight = (*flights)[bestFlightEle.ID];
-        for (auto next_flight : best_flight->nextFlights)
-        {
-            if (isAdopted[next_flight->flight_id])
-                continue;
-            // 下一航班（next_flight）抵达起点时使用的时间 > 上一航班（bestFlight）抵达时已经花费的时间 + 
-            // std::cout << "the priority of next_flight is " << next_flight->priority << endl;
-            if (next_flight->priority > best_flight->priority + best_flight->arrivalTime.toNum() - best_flight->lastFlight->arrivalTime.toNum())
+        // 优先级更新
+        if (best_flight->destPortID != dest_port.port_id)   // 如果不是最后一趟航班
+            for (auto next_flight : *(best_flight->nextFlights))
             {
-                next_flight->priority = best_flight->priority + best_flight->arrivalTime.toNum() - best_flight->lastFlight->arrivalTime.toNum();
-                // std::cout << "the priority of next_flight is " << next_flight->priority << endl;
-                next_flight->lastFlight = best_flight;
-                unadoptEle.push(FlightEle(next_flight->flight_id, next_flight->priority, next_flight->guard));      // 更新后的 next_flight 加入未采用队列
+                if (isAdopted[next_flight->flight_id])
+                    continue;
+                if (next_flight->priority > best_flight->priority + best_flight->arrivalTime.toNum() - best_flight->lastFlight->arrivalTime.toNum())
+                {
+                    next_flight->priority = best_flight->priority + best_flight->arrivalTime.toNum() - best_flight->lastFlight->arrivalTime.toNum();
+                    next_flight->lastFlight = best_flight;
+                    unadoptEle.push(FlightEle(next_flight->flight_id, next_flight->priority, next_flight->guard));      // 更新后的 next_flight 加入未采用队列
+                }
             }
-        }
+        else
+            for (auto end_flight : E[best_flight->destPortID])  // 如果是最后一趟航班，则更新一切边
+            {
+                if (isAdopted[end_flight->data->flight_id])
+                    continue;
+                if (end_flight->data->priority > best_flight->priority + best_flight->arrivalTime.toNum() - best_flight->lastFlight->arrivalTime.toNum())
+                {
+                    end_flight->data->priority = best_flight->priority + best_flight->arrivalTime.toNum() - best_flight->lastFlight->arrivalTime.toNum();
+                    end_flight->data->lastFlight = best_flight;
+                    //！事实上：以终点为起点的边就不必再更新了——没有意义
+                }
+            }
     }   // 可以得到起点到任何一个点的最短时间
 
     /** 选出从 dest_port 出发的最优航班（从 dest_port 出发的航班的 priority 不一定一样）
@@ -360,125 +367,170 @@ void Airports::solver4(PortInfo const& src_port, PortInfo const& dest_port)
 
 void Airports::solver5(PortInfo const& src_port, PortInfo const& dest_port,
     Time const& srcTime_ub, Time const& srcTime_lb, Time const& destTime_ub, Time const& destTime_lb,
-    int p_model, int max_transfer_time)
+    int p_model, int max_transfer_cnt)
 {
-    priority_queue<FlightInfo> unadoptEle;    // 尚未采取的边 
-    bool isAdopted[1000] = { false };
+    priority_queue<FlightEle> unadoptEle;    // 尚未采取的边 
+    bool isAdopted[10000] = { false };
     resetFlights();                          // 初始化所有边
     // 先将 src_port 为起点的边全部放入 priority_queue 中
     for (auto edge : E[src_port.port_id])
     {
         if (edge->data->departTime >= srcTime_lb && edge->data->departTime <= srcTime_ub &&
             edge->data->arrivalTime >= destTime_lb && edge->data->arrivalTime <= destTime_ub &&
-            edge->data->plane_model == p_model)   // 考虑起飞时段和飞机机型
+            (p_model == -1 || edge->data->plane_model == p_model))   // 考虑起飞时段和飞机机型
         {
             FlightInfo* begin_flight = new FlightInfo(Time(edge->data->departTime)); // 哨兵
             edge->data->priority = -1;                // 抵达该航班起点使用的中转次数均为 -1;
-            edge->data->lastFlight = begin_flight;   // 设置哨兵
-            unadoptEle.push(*edge->data);               // 初始时放入起点周围的所有边
+            edge->data->lastFlight = begin_flight;    // 设置哨兵
+            unadoptEle.push(FlightEle(edge->data->flight_id, edge->data->priority, edge->data->guard)); // 初始时放入起点周围的所有边
         }
     }
 
     while (!unadoptEle.empty())
     {
         // 算法正式启动：
-        FlightInfo* bestFlight = new FlightInfo(unadoptEle.top());     // 贪心：最优边，采用并放入已采取队列中
+        FlightEle bestFlightEle = unadoptEle.top();     // 贪心：最优边，采用并放入已采取队列中
         unadoptEle.pop();
-        isAdopted[bestFlight->flight_id] = true;
+        isAdopted[bestFlightEle.ID] = true;
+        FlightInfo* best_flight = (*flights)[bestFlightEle.ID];
         // 优先级更新   
-        for (auto next_flight : bestFlight->nextFlights)
-        {
-            if (isAdopted[next_flight->flight_id] ||
-                next_flight->departTime < srcTime_lb || next_flight->departTime > srcTime_ub ||
-                next_flight->arrivalTime < destTime_lb || next_flight->arrivalTime > destTime_ub ||
-                next_flight->plane_model != p_model)  // 如果一个航班已经被考虑过了则跳过
-                continue;
-            // 下一航班（next_flight）抵达起点时使用的停机次数 > 上一航班（bestFlight）抵达时使用的停机次数
-            if (next_flight->priority > bestFlight->priority + 1)
+        if (best_flight->destPortID != dest_port.port_id)   // 如果不是最后一趟航班
+            for (auto next_flight : *(best_flight->nextFlights))
             {
-                next_flight->priority = bestFlight->priority + 1;
-                next_flight->lastFlight = bestFlight;
-                unadoptEle.push(*next_flight);      // 更新后的 next_flight 加入未采用队列
+                if (isAdopted[next_flight->flight_id] ||
+                    next_flight->departTime < srcTime_lb || next_flight->departTime > srcTime_ub ||
+                    next_flight->arrivalTime < destTime_lb || next_flight->arrivalTime > destTime_ub ||
+                    (p_model != -1 && next_flight->plane_model != p_model))  // 如果一个航班已经被考虑过了则跳过
+                    continue;
+                // 下一航班（next_flight）抵达起点时使用的停机次数 > 上一航班（bestFlight）抵达时使用的停机次数
+                if (next_flight->priority > best_flight->priority + 1)
+                {
+                    next_flight->priority = best_flight->priority + 1;
+                    next_flight->lastFlight = best_flight;
+                    unadoptEle.push(FlightEle(next_flight->flight_id, next_flight->priority, next_flight->guard));      // 更新后的 next_flight 加入未采用队列
+                }
             }
-        }
+        else
+            for (auto end_flight : E[best_flight->destPortID])  // 如果是最后一趟航班，则更新一切边
+            {
+                if (isAdopted[end_flight->data->flight_id])
+                    continue;
+                if (end_flight->data->priority > best_flight->priority + best_flight->fare)
+                {
+                    end_flight->data->priority = best_flight->priority + 1;
+                    end_flight->data->lastFlight = best_flight;
+                    //！事实上：以终点为起点的边就不必再更新了——没有意义
+                }
+            }
     }   // 可以得到起点到任何一个点的最短时间
 
-    FlightInfo* best_end_flight = new FlightInfo();    //
+    FlightInfo* best_end_flight = E[dest_port.port_id].front()->data;
     for (auto edge : E[dest_port.port_id])    // 遍历所有从 dest_port 出发的航班
-        if (edge->data->priority < best_end_flight->priority)   // 选出最优解
+        if (edge->data->priority < best_end_flight->priority)
             best_end_flight = edge->data;
-    if (best_end_flight->priority > max_transfer_time)  // 如果没有满足的解（更新不到终点目标或中转次数太多）
+    if (!best_end_flight->lastFlight || best_end_flight->priority > max_transfer_cnt)  // 如果没有满足的解（更新不到终点目标或中转次数太多）
     {
         cout << -1 << endl;
         return;
     }
-    cout << "The flight ID list: " << endl;
-    while (best_end_flight->priority != __INT_MAX__)   // 溯源直到哨兵
+    stack<Rank> path;
+    while (best_end_flight->lastFlight->priority != __INT_MAX__)   // 溯源直到哨兵
     {
-        cout << best_end_flight->flight_id << " ";
+        path.push(best_end_flight->lastFlight->flight_id);
         best_end_flight = best_end_flight->lastFlight;
+    }
+    cout << "The flight ID list: " << endl;
+    while (!path.empty())
+    {
+        Rank id = path.top();
+        path.pop();
+        cout << id << " ";
     }
 }
 
 void Airports::solver6(PortInfo const& src_port, PortInfo const& dest_port,
     Time const& srcTime_ub, Time const& srcTime_lb, Time const& destTime_ub, Time const& destTime_lb, int p_model)
 {
-    priority_queue<FlightInfo> unadoptEle;    // 尚未采取的边 
-    bool isAdopted[1000] = { false };
+    priority_queue<FlightEle> unadoptEle;    // 尚未采取的边 
+    bool isAdopted[10000] = { false };
     resetFlights();                          // 初始化所有边
     // 先将 src_port 为起点的边全部放入 priority_queue 中
     for (auto edge : E[src_port.port_id])
     {
         if (edge->data->departTime >= srcTime_lb && edge->data->departTime <= srcTime_ub &&
             edge->data->arrivalTime >= destTime_lb && edge->data->arrivalTime <= destTime_ub &&
-            edge->data->plane_model == p_model)   // 考虑起飞时段和飞机机型
+            (p_model == -1 || edge->data->plane_model == p_model))   // 考虑起飞时段和飞机机型
         {
             FlightInfo* begin_flight = new FlightInfo(Time(edge->data->departTime)); // 哨兵
-            edge->data->priority = 0;                // 抵达该航班起点使用的航费花销均为 0;
-            edge->data->lastFlight = begin_flight;   // 设置哨兵（哨兵的 priority 初始化为 __INT_MAX__）
-            unadoptEle.push(*edge->data);               // 初始时放入起点周围的所有边
+            edge->data->priority = 0;                // 抵达该航班起点使用的航费均为 0;
+            edge->data->lastFlight = begin_flight;    // 设置哨兵
+            unadoptEle.push(FlightEle(edge->data->flight_id, edge->data->priority, edge->data->guard)); // 初始时放入起点周围的所有边
         }
     }
 
     while (!unadoptEle.empty())
     {
         // 算法正式启动：
-        FlightInfo* bestFlight = new FlightInfo(unadoptEle.top());     // 贪心：最优边，采用并放入已采取队列中
+        FlightEle bestFlightEle = unadoptEle.top();     // 贪心：最优边，采用并放入已采取队列中
         unadoptEle.pop();
-        isAdopted[bestFlight->flight_id] = true;
-        // 优先级更新   
-        for (auto next_flight : bestFlight->nextFlights)
-        {
-            if (isAdopted[next_flight->flight_id] ||
-                next_flight->departTime < srcTime_lb || next_flight->departTime > srcTime_ub ||
-                next_flight->arrivalTime < destTime_lb || next_flight->arrivalTime > destTime_ub ||
-                next_flight->plane_model != p_model)  // 如果一个航班已经被考虑过了则跳过
-                continue;
-            // 下一航班（next_flight）抵达起点时使用的费用 > 上一航班（bestFlight）抵达时使用的费用
-            if (next_flight->priority > bestFlight->priority + bestFlight->fare)
+        isAdopted[bestFlightEle.ID] = true;
+        FlightInfo* best_flight = (*flights)[bestFlightEle.ID];
+        // 优先级更新 
+        if (best_flight->destPortID != dest_port.port_id)   // 如果不是最后一趟航班
+            for (auto next_flight : *(best_flight->nextFlights))
             {
-                next_flight->priority = bestFlight->priority + bestFlight->fare;
-                next_flight->lastFlight = bestFlight;
-                unadoptEle.push(*next_flight);      // 更新后的 next_flight 加入未采用队列
+                if (isAdopted[next_flight->flight_id] ||
+                    next_flight->departTime < srcTime_lb || next_flight->departTime > srcTime_ub ||
+                    next_flight->arrivalTime < destTime_lb || next_flight->arrivalTime > destTime_ub ||
+                    (p_model != -1 && next_flight->plane_model != p_model))  // 如果一个航班已经被考虑过了则跳过
+                    continue;
+                // 下一航班（next_flight）抵达起点时使用的停机次数 > 上一航班（bestFlight）抵达时使用的停机次数
+                if (next_flight->priority > best_flight->priority + best_flight->fare)
+                {
+                    next_flight->priority = best_flight->priority + best_flight->fare;
+                    next_flight->lastFlight = best_flight;
+                    unadoptEle.push(FlightEle(next_flight->flight_id, next_flight->priority, next_flight->guard));      // 更新后的 next_flight 加入未采用队列
+                }
             }
-        }
-    }   // 可以得到起点到任何一个点的最短时间
+        else
+            for (auto end_flight : E[best_flight->destPortID])  // 如果是最后一趟航班，则更新一切边
+            {
+                if (isAdopted[end_flight->data->flight_id])
+                    continue;
+                if (end_flight->data->priority > best_flight->priority + best_flight->fare)
+                {
+                    end_flight->data->priority = best_flight->priority + best_flight->fare;
+                    end_flight->data->lastFlight = best_flight;
+                    //！事实上：以终点为起点的边就不必再更新了——没有意义
+                }
+            }
+    }
 
-    FlightInfo* best_end_flight = new FlightInfo();    //
-    for (auto edge : E[dest_port.port_id])    // 遍历所有从 dest_port 出发的航班
-        if (edge->data->priority < best_end_flight->priority)   // 选出最优解
-            best_end_flight = edge->data;
-    if (best_end_flight->priority == __INT_MAX__)      // 如果没有满足的解（更新不到目标）
+    FlightInfo* best_end_flight = E[dest_port.port_id].front()->data;
+    for (auto edge : E[dest_port.port_id])
     {
-        cout << -1 << endl;
+        // 遍历所有从 dest_port 出发的航班
+        if (edge->data->priority < best_end_flight->priority)
+            best_end_flight = edge->data;
+    }
+    stack<Rank> path;       // 航线路径
+    if (!best_end_flight->lastFlight)  // 不符合条件而没有被更新到
+    {
+        cout << -1;
         return;
     }
-    // int least_transfer_time = best_end_flight->priority - 1;
-    cout << "The flight ID list: " << endl;
-    while (best_end_flight->priority != __INT_MAX__)   // 溯源直到哨兵
+    cout << "The total fare : " << best_end_flight->priority << endl;
+    cout << "The flight ID list : ";
+    while (best_end_flight->lastFlight->priority != __INT_MAX__)   // 溯源直到哨兵
     {
-        cout << best_end_flight->flight_id << " ";
+        path.push(best_end_flight->lastFlight->flight_id);
         best_end_flight = best_end_flight->lastFlight;
+    }
+    while (!path.empty())
+    {
+        Rank id = path.top();
+        path.pop();
+        cout << id << " ";
     }
 }
 
@@ -487,123 +539,176 @@ void Airports::solver6(PortInfo const& src_port, PortInfo const& dest_port,
  * 采取的思路是：将 priority 值设置为：当前的中转时间总和，设置一个 guard 警戒值变量，用于衡量累计的中转时间总和
  * 如果某航班的累积中转次数已经超过 guard 值，则不对该航班优先级进行更新，而是视为一条无法满足条件的航班
 */
-void Airports::solver7(PortInfo const& src_port, PortInfo const& dest_port, int max_time, int max_transfer_time)
+void Airports::solver7(PortInfo const& src_port, PortInfo const& dest_port, int max_time, int max_transfer_cnt)
 {
-    priority_queue<FlightInfo> unadoptEle;    // 尚未采取的边 
-    bool isAdopted[1000] = { false };
+    priority_queue<FlightEle> unadoptEle;    // 尚未采取的边 
+    bool isAdopted[10000] = { false };
     resetFlights();                          // 初始化所有边
     // 先将 src_port 为起点的边全部放入 priority_queue 中
     for (auto edge : E[src_port.port_id])
     {
         FlightInfo* begin_flight = new FlightInfo(Time(edge->data->departTime)); // 哨兵
-        edge->data->priority = 0;                // 抵达初始航班起点使用的中转时间均为 0;
-        edge->data->guard = -1;                   // 抵达初始航班起点使用的中转次数均为 -1
-        edge->data->lastFlight = begin_flight;   // 设置哨兵（哨兵的 priority 初始化为 __INT_MAX__）
-        unadoptEle.push(*edge->data);               // 初始时放入起点周围的所有边
+        edge->data->priority = 0;             // 抵达该航班起点使用的时间均为 0;
+        edge->data->guard = -1;               // 抵达该航班起点使用的中转次数为 1
+        edge->data->lastFlight = begin_flight;
+        unadoptEle.push(FlightEle(edge->data->flight_id, edge->data->priority, edge->data->guard));         // 初始时放入起点周围的所有边
     }
-
     while (!unadoptEle.empty())
     {
         // 算法正式启动：
-        FlightInfo* bestFlight = new FlightInfo(unadoptEle.top());     // 贪心：最优边，采用并放入已采取队列中
+        FlightEle bestFlightEle = unadoptEle.top();     // 贪心：最优边，采用并放入已采取队列中
         unadoptEle.pop();
-        isAdopted[bestFlight->flight_id] = true;
-        // 优先级更新   
-        for (auto next_flight : bestFlight->nextFlights)
-        {
-            if (bestFlight->guard >= max_transfer_time)
-                break;
-            if (isAdopted[next_flight->flight_id])  // 如果一个航班已经被考虑过了则跳过或者中转次数已经达到警戒值
-                continue;
-            // 下一航班（next_flight）抵达起点时使用的停机次数 > 上一航班（bestFlight）抵达时使用的停机次数
-            if (next_flight->priority > bestFlight->priority + next_flight->departTime.toNum() - bestFlight->arrivalTime.toNum())
+        isAdopted[bestFlightEle.ID] = true;
+        FlightInfo* best_flight = (*flights)[bestFlightEle.ID];
+        // 优先级更新
+
+        if (best_flight->destPortID != dest_port.port_id)   // 如果不是最后一趟航班
+            for (auto next_flight : *(best_flight->nextFlights))
             {
-                next_flight->priority = bestFlight->priority + next_flight->departTime.toNum() - bestFlight->arrivalTime.toNum();
-                next_flight->guard = bestFlight->guard + 1;
-                next_flight->lastFlight = bestFlight;
-                unadoptEle.push(*next_flight);      // 更新后的 next_flight 加入未采用队列
+                if (best_flight->guard >= max_transfer_cnt) // 如果最佳航线使用的中转次数已经等于最大中转次数了，那么它的下一条航线不会被更新
+                    break;
+                if (isAdopted[next_flight->flight_id])
+                    continue;
+                if (next_flight->priority >= best_flight->priority + next_flight->departTime.toNum() - best_flight->arrivalTime.toNum())
+                {
+                    next_flight->priority = best_flight->priority + next_flight->departTime.toNum() - best_flight->arrivalTime.toNum();
+                    next_flight->guard = best_flight->guard + 1;
+                    next_flight->lastFlight = best_flight;
+                    unadoptEle.push(FlightEle(next_flight->flight_id, next_flight->priority, next_flight->guard));      // 更新后的 next_flight 加入未采用队列
+                }
+            }
+        else
+        {
+            if (best_flight->flight_id == 1369)
+            {
+                cout << "1369's priority is " << best_flight->priority << endl;
+                cout << "1369's guard is " << best_flight->guard << endl;
+            }
+            // end_flight 是以终点为起飞航站的航班。
+            for (auto end_flight : E[best_flight->destPortID])  // 如果是最后一趟航班，则更新一切边
+            {
+                if (best_flight->guard >= max_transfer_cnt) // 如果最佳航线使用的中转次数已经等于最大中转次数了，那么它不会被更新
+                    break;
+                if (isAdopted[end_flight->data->flight_id])
+                    continue;
+                if (end_flight->data->priority > best_flight->priority)
+                {
+                    end_flight->data->priority = best_flight->priority;     // 中转时间的特殊性：抵达终点之后不再计算中转时间
+                    end_flight->data->guard = best_flight->guard + 1;
+                    end_flight->data->lastFlight = best_flight;
+                    //！事实上：以终点为起点的边就不必再更新了——没有意义
+                }
             }
         }
     }   // 可以得到起点到任何一个点的最短时间
 
-    /** 选出从 dest_port 出发的最优航班（从 dest_port 出发的航班的 priority 不一定一样）
-     *  比如 11 点出发的航班飞行 9-11 ，从 21 点出发的航班飞行 21-22，起飞时间不同会影响总飞行时间最优值的不同
-     */
-    FlightInfo* best_end_flight = new FlightInfo();    //
+    FlightInfo* best_end_flight = E[dest_port.port_id].front()->data;
     for (auto edge : E[dest_port.port_id])    // 遍历所有从 dest_port 出发的航班
-        if (edge->data->priority < best_end_flight->priority)   // 选出最优解
+        if (edge->data->priority < best_end_flight->priority)
             best_end_flight = edge->data;
-
-    if (best_end_flight->priority == __INT_MAX__ || best_end_flight->priority > max_time)      // 如果没有满足的解（中转次数无法达到预期标准或最短路径时间也高于要求时间）
+    // 找不到满足的解
+    if (best_end_flight->priority > max_time)
     {
-        cout << -1 << endl;
+        cout << -1;
         return;
     }
-    cout << "The flight ID list: " << endl;
-    while (best_end_flight->priority != __INT_MAX__)   // 溯源直到哨兵
+    cout << "The time of path is " << best_end_flight->priority << endl;
+    cout << "find alternate path : " << endl;
+    stack<Rank> path;
+    while (best_end_flight->lastFlight->priority != __INT_MAX__)   // 溯源直到哨兵
     {
-        cout << best_end_flight->flight_id << " ";
+        path.push(best_end_flight->lastFlight->flight_id);
         best_end_flight = best_end_flight->lastFlight;
+    }
+    while (!path.empty())
+    {
+        Rank id = path.top();
+        path.pop();
+        cout << id << " ";
     }
 }
 
 void Airports::solver8(PortInfo const& src_port, PortInfo const& dest_port, int max_time)
 {
-    priority_queue<FlightInfo> unadoptEle;    // 尚未采取的边 
-    bool isAdopted[1000] = { false };
+    priority_queue<FlightEle> unadoptEle;    // 尚未采取的边 
+    bool isAdopted[10000] = { false };
     resetFlights();                          // 初始化所有边
     // 先将 src_port 为起点的边全部放入 priority_queue 中
     for (auto edge : E[src_port.port_id])
     {
         FlightInfo* begin_flight = new FlightInfo(Time(edge->data->departTime)); // 哨兵
-        edge->data->priority = 0;                // 抵达初始航班起点使用的航行费用均为 0;
-        edge->data->guard = 0;                   // 抵达初始航班起点使用的中转时间均为 0
-        edge->data->lastFlight = begin_flight;   // 设置哨兵（哨兵的 priority 初始化为 __INT_MAX__）
-        unadoptEle.push(*edge->data);               // 初始时放入起点周围的所有边
+        edge->data->priority = 0;             // 抵达该航班起点使用的航费均为 0;
+        edge->data->guard = 0;               // 抵达该航班起点使用的中转时间为 0
+        edge->data->lastFlight = begin_flight;
+        unadoptEle.push(FlightEle(edge->data->flight_id, edge->data->priority, edge->data->guard));         // 初始时放入起点周围的所有边
     }
-
     while (!unadoptEle.empty())
     {
         // 算法正式启动：
-        FlightInfo* bestFlight = new FlightInfo(unadoptEle.top());     // 贪心：最优边，采用并放入已采取队列中
+        FlightEle bestFlightEle = unadoptEle.top();     // 贪心：最优边，采用并放入已采取队列中
         unadoptEle.pop();
-        isAdopted[bestFlight->flight_id] = true;
-        // 优先级更新   
-        for (auto next_flight : bestFlight->nextFlights)
-        {
-            if (bestFlight->guard >= max_time)      // 中转时间超过要求
-                break;
-            if (isAdopted[next_flight->flight_id])  // 如果一个航班已经被考虑过了则跳过或者中转次数已经达到警戒值
-                continue;
-            // 下一航班（next_flight）抵达起点时使用的费用 > 上一航班（bestFlight）抵达时使用的费用
-            if (next_flight->priority > bestFlight->priority + bestFlight->fare)
+        isAdopted[bestFlightEle.ID] = true;
+        FlightInfo* best_flight = (*flights)[bestFlightEle.ID];
+        // 优先级更新
+        if (best_flight->destPortID != dest_port.port_id)   // 如果不是最后一趟航班
+            for (auto next_flight : *(best_flight->nextFlights))
             {
-                next_flight->priority = bestFlight->priority + bestFlight->fare;
-                next_flight->guard = bestFlight->guard + next_flight->departTime.toNum() - bestFlight->arrivalTime.toNum();
-                next_flight->lastFlight = bestFlight;
-                unadoptEle.push(*next_flight);      // 更新后的 next_flight 加入未采用队列
+                if (best_flight->guard >= max_time) // 如果最佳航线使用的中转次数已经等于最大中转次数了，那么它的下一条航线不会被更新
+                    break;
+                if (isAdopted[next_flight->flight_id])
+                    continue;
+                // 下一航班（next_flight）抵达起点时使用的时间 > 上一航班（bestFlight）抵达时已经花费的时间 + 
+                // std::cout << "the priority of next_flight is " << next_flight->priority << endl;
+                if (next_flight->priority > best_flight->priority + best_flight->fare)
+                {
+                    if (best_flight->guard + next_flight->departTime.toNum() - best_flight->arrivalTime.toNum() > max_time) // 如果修改以后会使总时间超标
+                        continue;
+                    next_flight->priority = best_flight->priority + best_flight->fare;
+                    next_flight->guard = best_flight->guard + next_flight->departTime.toNum() - best_flight->arrivalTime.toNum();
+                    next_flight->lastFlight = best_flight;
+                    unadoptEle.push(FlightEle(next_flight->flight_id, next_flight->priority, next_flight->guard));      // 更新后的 next_flight 加入未采用队列   
+                }
             }
-        }
+        else
+            // end_flight 是以终点为起飞航站的航班。
+            for (auto end_flight : E[best_flight->destPortID])  // 如果是最后一趟航班，则更新一切边
+            {
+                if (best_flight->guard > max_time) // 如果最佳航线使用的中转次数已经等于最大中转次数了，那么它不会被更新
+                    break;
+                if (isAdopted[end_flight->data->flight_id])
+                    continue;
+                if (end_flight->data->priority > best_flight->priority + best_flight->fare)
+                {
+                    end_flight->data->priority = best_flight->priority + best_flight->fare;
+                    end_flight->data->guard = best_flight->guard + end_flight->data->departTime.toNum() - best_flight->arrivalTime.toNum();
+                    end_flight->data->lastFlight = best_flight;
+                    //！事实上：以终点为起点的边就不必再更新了——没有意义
+                }
+            }
     }   // 可以得到起点到任何一个点的最短时间
 
-    /** 选出从 dest_port 出发的最优航班（从 dest_port 出发的航班的 priority 不一定一样）
-     *  比如 11 点出发的航班飞行 9-11 ，从 21 点出发的航班飞行 21-22，起飞时间不同会影响总飞行时间最优值的不同
-     */
-    FlightInfo* best_end_flight = new FlightInfo();    //
+    FlightInfo* best_end_flight = E[dest_port.port_id].front()->data;
     for (auto edge : E[dest_port.port_id])    // 遍历所有从 dest_port 出发的航班
-        if (edge->data->priority < best_end_flight->priority)   // 选出最优解
+        if (edge->data->priority < best_end_flight->priority)
             best_end_flight = edge->data;
-
-    if (best_end_flight->priority == __INT_MAX__)      // 如果没有满足的解
+    if (!best_end_flight->lastFlight)   // 找不到满足的解
     {
-        cout << -1 << endl;
+        cout << -1;
         return;
     }
-    cout << "The flight ID list: " << endl;
-    while (best_end_flight->priority != __INT_MAX__)   // 溯源直到哨兵
+    cout << "total fare : " << best_end_flight->priority << endl;
+    cout << "The flight ID list : " << endl;
+    stack<Rank> path;
+    while (best_end_flight->lastFlight->priority != __INT_MAX__)   // 溯源直到哨兵
     {
-        cout << best_end_flight->flight_id << " ";
+        path.push(best_end_flight->lastFlight->flight_id);
         best_end_flight = best_end_flight->lastFlight;
+    }
+    while (!path.empty())
+    {
+        Rank id = path.top();
+        path.pop();
+        cout << id << " ";
     }
 }
 
